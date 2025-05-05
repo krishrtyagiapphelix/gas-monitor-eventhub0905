@@ -25,7 +25,11 @@ public class IoTDataProcessor
     private bool _isInitialized = false;
     
     // Add sensor value cache for delta optimization - tracks the last known values for each device and sensor
+    // Track the last sensor values we've seen for each device
     private static readonly Dictionary<string, Dictionary<string, object>> _lastSensorValues = new Dictionary<string, Dictionary<string, object>>();
+    
+    // NEW: Track the last values we actually stored in MongoDB
+    private static readonly Dictionary<string, Dictionary<string, double>> _lastStoredValues = new Dictionary<string, Dictionary<string, double>>();
     
     // Track which parameters changed in the current message for selective MongoDB updates
     private static readonly Dictionary<string, HashSet<string>> _changedParameters = new Dictionary<string, HashSet<string>>();
@@ -255,6 +259,7 @@ public class IoTDataProcessor
                     _lastSensorValues[deviceId] = new Dictionary<string, object>();
                     // First time seeing this device, consider it a significant change
                     hasSignificantChanges = true;
+                    hasRelevantParameterChanges = true; // First time always has relevant parameter changes
                     _logger.LogInformation("First time seeing device {DeviceId}, processing data", deviceId);
                 }
                 
@@ -313,6 +318,7 @@ public class IoTDataProcessor
                                     // Track which parameter changed
                                     _changedParameters[deviceId].Add(sensorType);
                                     // Flag that a relevant parameter has changed - IMPORTANT for MongoDB storage decision
+                                    // Since this is temp/humidity/oilLevel, it's always relevant for storage
                                     hasRelevantParameterChanges = true;
                                     // Update the stored value
                                     _lastSensorValues[deviceId][sensorType] = newValue;
@@ -321,6 +327,9 @@ public class IoTDataProcessor
                                 {
                                     _logger.LogInformation("No significant change in {DeviceId} {SensorType}: {OldValue} -> {NewValue} (below threshold of {Threshold})", 
                                         deviceId, sensorType, oldValue, newValue, threshold);
+                                    // Update the in-memory value but DON'T set hasRelevantParameterChanges to true
+                                    // This ensures we don't store redundant data
+                                    _lastSensorValues[deviceId][sensorType] = newValue;
                                 }
                             }
                             else
@@ -361,6 +370,7 @@ public class IoTDataProcessor
                         hasSignificantChanges = true;
                         // Track that alerts have changed
                         _changedParameters[deviceId].Add("alerts");
+                        // Note: We don't set hasRelevantParameterChanges=true here since alerts aren't temp/humidity/oilLevel
                     }
                 }
                 
@@ -372,13 +382,14 @@ public class IoTDataProcessor
                     hasSignificantChanges = true;
                     // Track that alert_code has changed
                     _changedParameters[deviceId].Add("alert_code");
+                    // Note: We don't set hasRelevantParameterChanges=true here since alert_code isn't temp/humidity/oilLevel
                 }
                 
                 // Save the relevant parameter change state to use for MongoDB storage decision
                 // This ensures we only store data if temperature, humidity, or oilLevel has changed
                 jsonObject["_hasRelevantParameterChanges"] = hasRelevantParameterChanges;
                 
-                // Skip processing if no significant changes were detected (whether relevant or not)
+                // OPTIMIZATION: Skip processing if no significant changes were detected (whether relevant or not)
                 if (!hasSignificantChanges)
                 {
                     _logger.LogInformation("No significant changes detected for device {DeviceId}, skipping further processing", deviceId);
@@ -414,49 +425,54 @@ public class IoTDataProcessor
                     _logger.LogInformation("========== MONGODB TELEMETRY INSERTION ==========");
                     _logger.LogInformation("Device ID: {DeviceId}", telemetryDeviceId);
                     
-                    // Check if this data packet has relevant parameter changes (from earlier detection)
-                    bool hasRelevantChanges = false;
+                    // Get the value of the flag we set earlier that tracks if any temp/humidity/oilLevel changed
+                    // Use a different variable name to avoid conflict with the outer scope
+                    bool shouldStoreInMongoDB = false;
                     if (jsonObject.ContainsKey("_hasRelevantParameterChanges") && 
-                        jsonObject["_hasRelevantParameterChanges"].Type == JTokenType.Boolean)
+                        jsonObject["_hasRelevantParameterChanges"] != null)
                     {
-                        hasRelevantChanges = (bool)jsonObject["_hasRelevantParameterChanges"];
+                        shouldStoreInMongoDB = (bool)jsonObject["_hasRelevantParameterChanges"];
                     }
                     
-                    // Remove the temporary flag before saving to MongoDB
-                    if (jsonObject.ContainsKey("_hasRelevantParameterChanges"))
-                    {
-                        jsonObject.Remove("_hasRelevantParameterChanges");
-                    }
+                    // Get current values for critical parameters
+                    double currentTemp = 0, currentHumidity = 0, currentOilLevel = 0;
+                    bool hasTempValue = jsonObject.ContainsKey("temperature") && 
+                                     double.TryParse(jsonObject["temperature"].ToString(), out currentTemp);
+                    bool hasHumidityValue = jsonObject.ContainsKey("humidity") && 
+                                         double.TryParse(jsonObject["humidity"].ToString(), out currentHumidity);
+                    bool hasOilLevelValue = jsonObject.ContainsKey("oilLevel") && 
+                                         double.TryParse(jsonObject["oilLevel"].ToString(), out currentOilLevel);
                     
-                    // If this is our first time seeing a device, log that we're storing its initial state
-                    bool isNewDevice = _changedParameters.ContainsKey(deviceId) && 
-                                    _changedParameters[deviceId].Count > 0 && 
-                                    !_lastSensorValues[deviceId].ContainsKey("_processed");
-                                    
-                    if (isNewDevice)
+                    // Initialize last stored values dictionary if needed
+                    if (!_lastStoredValues.ContainsKey(deviceId))
                     {
-                        _logger.LogInformation("First time processing device {DeviceId} - storing initial state in MongoDB", deviceId);
-                        _lastSensorValues[deviceId]["_processed"] = true;
-                        hasRelevantChanges = true;
+                        _lastStoredValues[deviceId] = new Dictionary<string, double>();
+                        _logger.LogInformation("First data for device {DeviceId} - will store in MongoDB", deviceId);
+                        shouldStoreInMongoDB = true; // First time, always store data
                     }
-                    
-                    // Log what parameters have changed if any
+
+                    // Log which parameters have changed
                     if (_changedParameters.ContainsKey(deviceId) && _changedParameters[deviceId].Count > 0)
                     {
-                        _logger.LogInformation("All changed parameters for device {DeviceId}: {ChangedParams}", 
+                        _logger.LogInformation("Changed parameters for device {DeviceId}: {ChangedParams}", 
                             deviceId, string.Join(", ", _changedParameters[deviceId]));
                     }
                     
                     // ONLY send data to MongoDB if temperature, humidity, or oil level has changed
-                    if (hasRelevantChanges)
+                    if (shouldStoreInMongoDB)
                     {
-                        _logger.LogInformation("Critical parameter change detected (temp/humidity/oilLevel) - sending full telemetry packet to MongoDB");
+                        _logger.LogInformation("STORING DATA - At least one critical parameter changed - sending ALL telemetry data to MongoDB");
                         
-                        // Use the MongoDataService to save the complete telemetry data
+                        // Update the last stored values after successful storage
+                        if (hasTempValue) _lastStoredValues[deviceId]["temperature"] = currentTemp;
+                        if (hasHumidityValue) _lastStoredValues[deviceId]["humidity"] = currentHumidity;
+                        if (hasOilLevelValue) _lastStoredValues[deviceId]["oilLevel"] = currentOilLevel;
+                        
+                        // Use the MongoDataService to save the complete telemetry data with ALL parameters
                         if (_mongoDataService != null)
                         {
                             await _mongoDataService.SaveTelemetryData(jsonObject);
-                            _logger.LogInformation("Successfully stored telemetry data in MongoDB using data service");
+                            _logger.LogInformation("SUCCESS: Stored ALL telemetry data in MongoDB because at least one parameter changed");
                         }
                         else
                         {
@@ -466,7 +482,7 @@ public class IoTDataProcessor
                     }
                     else
                     {
-                        _logger.LogInformation("NO RELEVANT PARAMETER CHANGES (temp/humidity/oilLevel) - SKIPPING MongoDB storage");
+                        _logger.LogWarning("SKIPPED MONGODB STORAGE - No changes in temperature, humidity, or oil level parameters");
                     }
                 }
                 catch (Exception ex)
