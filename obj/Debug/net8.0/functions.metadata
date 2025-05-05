@@ -1,0 +1,25 @@
+[
+  {
+    "name": "ProcessIoTDataV3_Unique",
+    "scriptFile": "EventHubConsumer.dll",
+    "entryPoint": "IoTDataProcessor.ProcessIoTData",
+    "language": "dotnet-isolated",
+    "properties": {
+      "IsCodeless": false
+    },
+    "bindings": [
+      {
+        "name": "events",
+        "direction": "In",
+        "type": "eventHubTrigger",
+        "eventHubName": "iothub-ehub-iothub-iot-64635521-25af07dd8a",
+        "connection": "EventHubConnectionString",
+        "consumerGroup": "%ConsumerGroup%",
+        "cardinality": "Many",
+        "properties": {
+          "supportsDeferredBinding": "True"
+        }
+      }
+    ]
+  }
+]

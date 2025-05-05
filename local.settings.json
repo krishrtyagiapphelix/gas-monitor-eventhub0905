@@ -1,0 +1,23 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "DefaultEndpointsProtocol=https;AccountName=saiotopendexdev001;AccountKey=fOFUQD1qs5Qo0ZjUh2k1GuETvmIiiipiqOj8CBKbsvAEmX5eHw4P5xMZDCxAp3/SKlkxSYvDxGYM+AStTBKyBg==;EndpointSuffix=core.windows.net",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    "ConsumerGroup": "devicemonitor",
+    "CosmosDBConnectionString": "AccountEndpoint=https://cosmosdb-iot-openedx-dev-001.documents.azure.com:443/;AccountKey=RFQnXZ7tLoiXHarc9L5jiaY8xgX7RjCYsXRRpe7v285yrCWf6pFVlEUmEPdCs5Mmgl7J4wKVnOchACDbhdbR3g==;",
+    "CosmosDbEndpoint": "https://cosmosdb-iot-openedx-dev-001.documents.azure.com:443/",
+    "MyDatabase": "iiot-telemetry-db",
+    "MyContainer": "device-telemetry",
+    "PostmarkApiKey": "013ca6f4-9c76-4f26-97bc-fe4135a90ab9",
+    "AlertRecipientEmail": "akanshu.aich@apphelix.ai",
+    "AlertSenderEmail": "krish.tyagi@apphelix.ai",
+    "EventHubConnectionString": "Endpoint=sb://ihsuprodblres035dednamespace.servicebus.windows.net/;SharedAccessKeyName=iothubowner;SharedAccessKey=JQbu5CALp71Xocew2l9sSe9pWZQDFRXJdAIoTFikfYU=;EntityPath=iothub-ehub-iothub-iot-64635521-25af07dd8a",
+    "SqlConnectionString": "Server=tcp:sqlserver-iot-openedx-dev-001.database.windows.net,1433;Initial Catalog=sqldb-iot-openedx-dev-002;Persist Security Info=False;User ID=sqladmin;Password=P@ssw0rd1234!;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;",
+    "COSMOS_DB_ENDPOINT": "https://cosmosdb-iot-openedx-dev-001.documents.azure.com:443/",
+    "COSMOS_DB_KEY": "RFQnXZ7tLoiXHarc9L5jiaY8xgX7RjCYsXRRpe7v285yrCWf6pFVlEUmEPdCs5Mmgl7J4wKVnOchACDbhdbR3g==",
+    "COSMOS_DB_DATABASE_ID": "iiot-telemetry-db",
+    "COSMOS_DB_CONTAINER_ID": "device-telemetry",
+    "MongoDbConnectionString": "mongodb+srv://garvisha:apphelix@oxygen-monitor.ivkylso.mongodb.net/oxygen_monitor?retryWrites=true&w=majority&appName=Oxygen-Monitor"
+  },
+  "ConnectionStrings": {}
+}

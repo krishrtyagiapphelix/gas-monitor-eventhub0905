@@ -1,0 +1,68 @@
+{
+    "version": "2.0",
+    "logging": {
+        "applicationInsights": {
+            "samplingSettings": {
+                "isEnabled": true,
+                "excludedTypes": "Request"
+            },
+            "enableLiveMetricsFilters": true
+        },
+        "logLevel": {
+            "default": "Warning",
+            "Host.Results": "Error",
+            "Function": "Information",
+            "Host.Aggregator": "Warning",
+            "Microsoft": "Warning",
+            "Azure": "Warning"
+        },
+        "console": {
+            "isEnabled": true
+        }
+    },
+    "extensionBundle": {
+        "id": "Microsoft.Azure.Functions.ExtensionBundle",
+        "version": "[4.*, 5.0.0)"
+    },
+    "concurrency": {
+        "dynamicConcurrencyEnabled": false,
+        "snapshotPersistenceEnabled": false,
+        "maximumFunctionConcurrency": 1
+    },
+    "functionTimeout": "00:10:00",
+    "singleton": {
+        "lockPeriod": "00:00:15",
+        "listenerLockPeriod": "00:00:15",
+        "lockAcquisitionTimeout": "00:01:00",
+        "lockAcquisitionPollingInterval": "00:00:03"
+    },
+    "extensions": {
+        "http": {
+            "routePrefix": ""
+        },
+        "eventHubs": {
+            "prefetchCount": 300,
+            "batchCheckpointFrequency": 5,
+            "maxEventBatchSize": 100,
+            "targetUnprocessedEventThreshold": 500,
+            "maxBatchSize": 100,
+            "maxConcurrentCalls": 1,
+            "initialOffsetOptions": {
+                "type": "fromStart"
+            },
+            "clientRetryOptions": {
+                "mode": "exponential",
+                "tryTimeout": "00:01:00",
+                "delay": "00:00:00.8",
+                "maximumDelay": "00:01:00",
+                "maximumRetries": 3
+            },
+            "transportType": "amqpWebSockets"
+        }
+    },
+    "watchDirectories": [
+        "bin"
+    ],
+    "functionWorkerRuntime": "dotnet-isolated",
+    "enableWorkerIndexing": false
+}
