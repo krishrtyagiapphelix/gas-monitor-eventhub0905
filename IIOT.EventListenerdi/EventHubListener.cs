@@ -21,6 +21,7 @@ public class IoTDataProcessor
     private IMongoCollection<AlarmDocument>? _alarmCollection;
     private IMongoCollection<Models.TelemetryDocument>? _telemetryCollection;
     private MongoDataService? _mongoDataService;
+    private RedisService? _redisService;
     private int _alarmsInserted = 0;
     private bool _isInitialized = false;
     
@@ -78,6 +79,10 @@ public class IoTDataProcessor
         {
             _mongoConnectionString = Environment.GetEnvironmentVariable("MongoDbConnectionString");
             _logger.LogInformation("Initializing IoTDataProcessor with MongoDB");
+            
+            // Initialize Redis service
+            _redisService = new RedisService(_logger);
+            _logger.LogInformation("Redis service initialized");
             
             // Initialize MongoDB client if connection string is available
             if (!string.IsNullOrEmpty(_mongoConnectionString))
@@ -405,7 +410,7 @@ public class IoTDataProcessor
                 jsonObject["id"] = Guid.NewGuid().ToString();
                 jsonObject["receivedTimestamp"] = DateTime.UtcNow;
 
-                // Store telemetry data in MongoDB
+                // Store telemetry data in MongoDB and publish to Redis
                 try
                 {
                     // Ensure we have a device identifier
@@ -456,6 +461,17 @@ public class IoTDataProcessor
                     {
                         _logger.LogInformation("Changed parameters for device {DeviceId}: {ChangedParams}", 
                             deviceId, string.Join(", ", _changedParameters[deviceId]));
+                    }
+                    
+                    // Always publish telemetry data to Redis for real-time updates
+                    if (_redisService != null)
+                    {
+                        await _redisService.PublishTelemetryData(jsonObject);
+                        _logger.LogInformation("Published telemetry data to Redis for real-time updates");
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Redis service not available - cannot publish telemetry data");
                     }
                     
                     // ONLY send data to MongoDB if temperature, humidity, or oil level has changed
@@ -799,7 +815,7 @@ public class IoTDataProcessor
         int? telemetryKeyId = null,
         int? alarmRootCauseId = null)
     {
-        _logger.LogInformation("\n===========================================");
+        _logger.LogInformation("\n==========================================");
         _logger.LogInformation("========== ALARM INSERTION ==========");
         _logger.LogInformation("ALARM CODE: {AlarmCode}", alarmCode);
         _logger.LogInformation("DEVICE NAME: {DeviceName}", jsonObject["device"]?.ToString() ?? "unknown");
@@ -819,6 +835,33 @@ public class IoTDataProcessor
         
         try
         {
+            // Create alarm JSON object for Redis
+            JObject alarmObject = new JObject
+            {
+                ["id"] = Guid.NewGuid().ToString(),
+                ["deviceId"] = deviceId.ToString(),
+                ["deviceName"] = deviceName,
+                ["alarmCode"] = alarmCode,
+                ["alarmDescription"] = alarmDescription,
+                ["alarmValue"] = alarmValue,
+                ["plantName"] = plantName,
+                ["createdTimestamp"] = DateTime.UtcNow,
+                ["isActive"] = true,
+                ["telemetryKeyId"] = telemetryKeyId,
+                ["alarmRootCauseId"] = alarmRootCauseId
+            };
+            
+            // Publish alarm to Redis for real-time updates
+            if (_redisService != null)
+            {
+                await _redisService.PublishAlarmData(alarmObject);
+                _logger.LogInformation("Published alarm data to Redis for real-time updates");
+            }
+            else
+            {
+                _logger.LogWarning("Redis service not available - cannot publish alarm data");
+            }
+            
             // If MongoDB data service is available, use it to save alarm data
             if (_mongoDataService != null)
             {

@@ -17,7 +17,8 @@
     "COSMOS_DB_KEY": "RFQnXZ7tLoiXHarc9L5jiaY8xgX7RjCYsXRRpe7v285yrCWf6pFVlEUmEPdCs5Mmgl7J4wKVnOchACDbhdbR3g==",
     "COSMOS_DB_DATABASE_ID": "iiot-telemetry-db",
     "COSMOS_DB_CONTAINER_ID": "device-telemetry",
-    "MongoDbConnectionString": "mongodb+srv://garvisha:apphelix@oxygen-monitor.ivkylso.mongodb.net/oxygen_monitor?retryWrites=true&w=majority&appName=Oxygen-Monitor"
+    "MongoDbConnectionString": "mongodb+srv://garvisha:apphelix@oxygen-monitor.ivkylso.mongodb.net/oxygen_monitor?retryWrites=true&w=majority&appName=Oxygen-Monitor",
+    "RedisConnectionString": "localhost:6379"
   },
   "ConnectionStrings": {}
 }
