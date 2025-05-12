@@ -13,14 +13,28 @@ public class RedisService
     private readonly string _redisConnectionString;
     private bool _isConnected = false;
 
+    // Track last alarm publication time per device+code to prevent batching
+    private readonly Dictionary<string, DateTime> _lastAlarmPublishTime = new Dictionary<string, DateTime>();
+    // Minimum time between identical alarms in milliseconds (1 second)
+    private const int MIN_ALARM_INTERVAL_MS = 1000;
+
+    /// <summary>
+    /// Dictionary of device ID to plant name mappings
+    /// </summary>
+    private readonly Dictionary<string, string> _devicePlantMap = new Dictionary<string, string>
+    {
+        { "esp32_02", "Plant C" },
+        { "esp32_04", "Plant D" }
+    };
+
     public RedisService(ILogger logger)
     {
         _logger = logger;
-        
+
         // Get Redis connection string from environment variable
         _redisConnectionString = Environment.GetEnvironmentVariable("RedisConnectionString") ?? "localhost:6379";
         _logger.LogInformation("Redis connection string: {ConnectionString}", _redisConnectionString);
-        
+
         try
         {
             _logger.LogInformation("Connecting to Redis at {ConnectionString}", _redisConnectionString);
@@ -55,23 +69,23 @@ public class RedisService
             string deviceId = telemetryData["deviceId"]?.ToString() ?? 
                              telemetryData["device"]?.ToString() ?? 
                              telemetryData["device_id"]?.ToString() ?? "unknown";
-            
+
             string deviceName = telemetryData["deviceName"]?.ToString() ?? 
                                telemetryData["DeviceName"]?.ToString() ?? 
                                deviceId;
-            
+
             // Get the plant name based on the device
             string plantName = GetPlantNameFromDevice(deviceName);
-            
+
             // Add plant name to telemetry data
             telemetryData["plantName"] = plantName;
-            
+
             // Convert to JSON string
             string jsonData = telemetryData.ToString(Formatting.None);
-            
+
             // Publish to Redis telemetry channel
             await _db.PublishAsync("telemetry", jsonData);
-            
+
             _logger.LogInformation("📡 Published telemetry data to Redis for device: {DeviceName}", deviceName);
             return true;
         }
@@ -83,7 +97,7 @@ public class RedisService
     }
 
     /// <summary>
-    /// Publish alarm data to Redis channel
+    /// Publish alarm data to Redis channel with rate limiting to prevent alarm batching
     /// </summary>
     /// <param name="alarmData">Alarm data as JObject</param>
     /// <returns>True if successful, false otherwise</returns>
@@ -101,27 +115,59 @@ public class RedisService
             string deviceId = alarmData["deviceId"]?.ToString() ?? 
                              alarmData["DeviceId"]?.ToString() ?? 
                              alarmData["device"]?.ToString() ?? "unknown";
-            
+
             string deviceName = alarmData["deviceName"]?.ToString() ?? 
                                alarmData["DeviceName"]?.ToString() ?? 
                                deviceId;
-            
+
+            string alarmCode = alarmData["alarmCode"]?.ToString() ?? 
+                              alarmData["AlarmCode"]?.ToString() ?? 
+                              "UNKNOWN";
+
             // Get the plant name based on the device
             string plantName = GetPlantNameFromDevice(deviceName);
-            
+
             // Add plant name to alarm data if not already present
             if (!alarmData.ContainsKey("plantName") && !alarmData.ContainsKey("PlantName"))
             {
                 alarmData["plantName"] = plantName;
             }
-            
+
+            // Create a unique key for this alarm type + device
+            string alarmKey = $"{deviceName}:{alarmCode}";
+
+            // Check if we've published this alarm type recently
+            if (_lastAlarmPublishTime.ContainsKey(alarmKey))
+            {
+                // Calculate time since last publication of this alarm type
+                TimeSpan timeSinceLastPublish = DateTime.UtcNow - _lastAlarmPublishTime[alarmKey];
+
+                // If it's been less than our minimum interval, skip this publication
+                if (timeSinceLastPublish.TotalMilliseconds < MIN_ALARM_INTERVAL_MS)
+                {
+                    _logger.LogInformation("⏱️ Rate limiting alarm {AlarmCode} for {DeviceName} - published {TimeMs}ms ago", 
+                        alarmCode, deviceName, timeSinceLastPublish.TotalMilliseconds);
+                    return true; // Return true since we're intentionally skipping, not failing
+                }
+            }
+
+            // Update the last publish time for this alarm type
+            _lastAlarmPublishTime[alarmKey] = DateTime.UtcNow;
+
+            // Ensure the timestamp is current
+            if (!alarmData.ContainsKey("createdTimestamp") && !alarmData.ContainsKey("CreatedTimestamp"))
+            {
+                alarmData["createdTimestamp"] = DateTime.UtcNow;
+            }
+
             // Convert to JSON string
             string jsonData = alarmData.ToString(Formatting.None);
-            
+
             // Publish to Redis alarms channel
             await _db.PublishAsync("alarms", jsonData);
-            
-            _logger.LogInformation("🚨 Published alarm data to Redis for device: {DeviceName}", deviceName);
+
+            _logger.LogInformation("🚨 Published alarm {AlarmCode} to Redis for device: {DeviceName} ({PlantName})", 
+                alarmCode, deviceName, plantName);
             return true;
         }
         catch (Exception ex)

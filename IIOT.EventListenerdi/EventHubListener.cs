@@ -712,63 +712,96 @@ public class IoTDataProcessor
             string deviceName = jsonObject["device"]?.ToString() ?? "unknown";
             string plantName = deviceName.Contains("esp32_04") ? "Plant D" : "Plant C";
             
-            _logger.LogInformation("Processing oil level {OilLevel}% for device {Device} ({Plant})", 
-                oilLevel, deviceName, plantName);
+            // Check if we've processed this device+sensor combo recently
+            string deviceSensorKey = $"{deviceName}-oilLevel";
+            bool hasChanged = true;
+            
+            // Check if we have a previous value and if the change is significant
+            if (_lastSensorValues.ContainsKey(deviceName) && _lastSensorValues[deviceName].ContainsKey("oilLevel"))
+            {
+                double prevValue = Convert.ToDouble(_lastSensorValues[deviceName]["oilLevel"]);
+                double tolerance = _changeTolerances["oilLevel"];
                 
-            if (oilLevel <= 0)
-            {
-                _logger.LogWarning("Oil tank empty for {Device} ({Plant})! Sending alert...", 
-                    deviceName, plantName);
-                await SendPostmarkAlert(jsonObject.ToString());
-                await InsertIntoAlarmTable(
-                    jsonObject, 
-                    "IO_ALR_108", 
-                    $"Oil tank empty - {plantName}", 
-                    oilLevel.ToString(),
-                    GetTelemetryKeyId("oilLevel"),
-                    GetAlarmRootCauseId("Oil tank empty")
-                );
+                // Only consider it changed if it's different by more than the tolerance
+                hasChanged = Math.Abs(prevValue - oilLevel) >= tolerance;
+                
+                _logger.LogInformation("Oil level comparison: Previous={Previous}, Current={Current}, Tolerance={Tolerance}, HasChanged={HasChanged}", 
+                    prevValue, oilLevel, tolerance, hasChanged);
             }
-            else if (oilLevel <= 10)
+            
+            // Update the last seen value regardless
+            if (!_lastSensorValues.ContainsKey(deviceName))
             {
-                _logger.LogWarning("Oil level at 10% for {Device} ({Plant})! Sending alert...", 
-                    deviceName, plantName);
-                await SendPostmarkAlert(jsonObject.ToString());
-                await InsertIntoAlarmTable(
-                    jsonObject, 
-                    "IO_ALR_107", 
-                    $"Oil level at 10% - {plantName}", 
-                    oilLevel.ToString(),
-                    GetTelemetryKeyId("oilLevel"),
-                    GetAlarmRootCauseId("Oil level is critically low")
-                );
+                _lastSensorValues[deviceName] = new Dictionary<string, object>();
             }
-            else if (oilLevel <= 30)
+            _lastSensorValues[deviceName]["oilLevel"] = oilLevel;
+            
+            // Only proceed with alarm generation if the value has significantly changed
+            if (hasChanged)
             {
-                _logger.LogWarning("Oil level at 30% for {Device} ({Plant})! Sending alert...", 
-                    deviceName, plantName);
-                await SendPostmarkAlert(jsonObject.ToString());
-                await InsertIntoAlarmTable(
-                    jsonObject, 
-                    "IO_ALR_106", 
-                    $"Oil level at 30% - {plantName}", 
-                    oilLevel.ToString(),
-                    GetTelemetryKeyId("oilLevel"),
-                    GetAlarmRootCauseId("Oil level is low")
-                );
+                _logger.LogInformation("Processing oil level {OilLevel}% for device {Device} ({Plant}) - value has changed significantly", 
+                    oilLevel, deviceName, plantName);
+                    
+                if (oilLevel <= 0)
+                {
+                    _logger.LogWarning("Oil tank empty for {Device} ({Plant})! Sending alert...", 
+                        deviceName, plantName);
+                    await SendPostmarkAlert(jsonObject.ToString());
+                    await InsertIntoAlarmTable(
+                        jsonObject, 
+                        "IO_ALR_108", 
+                        $"Oil tank empty - {plantName}", 
+                        oilLevel.ToString(),
+                        GetTelemetryKeyId("oilLevel"),
+                        GetAlarmRootCauseId("Oil tank empty")
+                    );
+                }
+                else if (oilLevel <= 10)
+                {
+                    _logger.LogWarning("Oil level at 10% for {Device} ({Plant})! Sending alert...", 
+                        deviceName, plantName);
+                    await SendPostmarkAlert(jsonObject.ToString());
+                    await InsertIntoAlarmTable(
+                        jsonObject, 
+                        "IO_ALR_107", 
+                        $"Oil level at 10% - {plantName}", 
+                        oilLevel.ToString(),
+                        GetTelemetryKeyId("oilLevel"),
+                        GetAlarmRootCauseId("Oil level is critically low")
+                    );
+                }
+                else if (oilLevel <= 30)
+                {
+                    _logger.LogWarning("Oil level at 30% for {Device} ({Plant})! Sending alert...", 
+                        deviceName, plantName);
+                    await SendPostmarkAlert(jsonObject.ToString());
+                    await InsertIntoAlarmTable(
+                        jsonObject, 
+                        "IO_ALR_106", 
+                        $"Oil level at 30% - {plantName}", 
+                        oilLevel.ToString(),
+                        GetTelemetryKeyId("oilLevel"),
+                        GetAlarmRootCauseId("Oil level is low")
+                    );
+                }
+                else if (oilLevel <= 50)
+                {
+                    _logger.LogWarning("Oil level at 50% for {Device} ({Plant})! Sending alert...", 
+                        deviceName, plantName);
+                    await InsertIntoAlarmTable(
+                        jsonObject, 
+                        "IO_ALR_105", 
+                        $"Oil level at 50% - {plantName}", 
+                        oilLevel.ToString(),
+                        GetTelemetryKeyId("oilLevel"),
+                        GetAlarmRootCauseId("Oil level at half capacity")
+                    );
+                }
             }
-            else if (oilLevel <= 50)
+            else
             {
-                _logger.LogWarning("Oil level at 50% for {Device} ({Plant})! Sending alert...", 
-                    deviceName, plantName);
-                await InsertIntoAlarmTable(
-                    jsonObject, 
-                    "IO_ALR_105", 
-                    $"Oil level at 50% - {plantName}", 
-                    oilLevel.ToString(),
-                    GetTelemetryKeyId("oilLevel"),
-                    GetAlarmRootCauseId("Oil level at half capacity")
-                );
+                _logger.LogInformation("Skipping alarm generation for oil level {OilLevel}% for {Device} - no significant change", 
+                    oilLevel, deviceName);
             }
         }
     }
@@ -1070,12 +1103,14 @@ public class IoTDataProcessor
                 case "IO_ALR_100":
                 case "IO_ALR_101":
                     return 14; // Temperature alarms
-                case "IO_ALR_102":
                 case "IO_ALR_103":
-                    return 14; // Humidity alarms
                 case "IO_ALR_104":
+                    return 14; // Humidity alarms
                 case "IO_ALR_105":
                 case "IO_ALR_106":
+                case "IO_ALR_107":
+                case "IO_ALR_108":
+                case "IO_ALR_109":
                     return 15; // Oil level alarms
                 default:
                     return 14; // Default alarm ID
@@ -1322,12 +1357,14 @@ public class IoTDataProcessor
                 case "IO_ALR_100":
                 case "IO_ALR_101":
                     return 1; // Temperature
-                case "IO_ALR_102":
                 case "IO_ALR_103":
-                    return 2; // Humidity
                 case "IO_ALR_104":
+                    return 2; // Humidity
                 case "IO_ALR_105":
                 case "IO_ALR_106":
+                case "IO_ALR_107":
+                case "IO_ALR_108":
+                case "IO_ALR_109":
                     return 3; // Oil level
                 default:
                     return 4; // Default to alert category
