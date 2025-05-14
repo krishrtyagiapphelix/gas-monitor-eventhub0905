@@ -7615,19 +7615,19 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\KrishTyagi\\.nuget\\packages\\": {}
+    "C:\\Users\\GarvishaBansal\\.nuget\\packages\\": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\KrishTyagi\\OneDrive - AppHelix Technologies Pvt. Ltd\\Desktop\\QUE\\gas-monitor-eventhub0505\\obj\\Debug\\net8.0\\WorkerExtensions\\WorkerExtensions.csproj",
+      "projectUniqueName": "C:\\Users\\GarvishaBansal\\Desktop\\Gas-monitor1305\\gas-monitor-eventhub0905\\obj\\Debug\\net8.0\\WorkerExtensions\\WorkerExtensions.csproj",
       "projectName": "Microsoft.Azure.Functions.Worker.Extensions",
-      "projectPath": "C:\\Users\\KrishTyagi\\OneDrive - AppHelix Technologies Pvt. Ltd\\Desktop\\QUE\\gas-monitor-eventhub0505\\obj\\Debug\\net8.0\\WorkerExtensions\\WorkerExtensions.csproj",
-      "packagesPath": "C:\\Users\\KrishTyagi\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\KrishTyagi\\OneDrive - AppHelix Technologies Pvt. Ltd\\Desktop\\QUE\\gas-monitor-eventhub0505\\obj\\Debug\\net8.0\\WorkerExtensions\\obj\\",
+      "projectPath": "C:\\Users\\GarvishaBansal\\Desktop\\Gas-monitor1305\\gas-monitor-eventhub0905\\obj\\Debug\\net8.0\\WorkerExtensions\\WorkerExtensions.csproj",
+      "packagesPath": "C:\\Users\\GarvishaBansal\\.nuget\\packages\\",
+      "outputPath": "C:\\Users\\GarvishaBansal\\Desktop\\Gas-monitor1305\\gas-monitor-eventhub0905\\obj\\Debug\\net8.0\\WorkerExtensions\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
-        "C:\\Users\\KrishTyagi\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        "C:\\Users\\GarvishaBansal\\AppData\\Roaming\\NuGet\\NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net6.0"
@@ -7650,8 +7650,7 @@
         "enableAudit": "true",
         "auditLevel": "low",
         "auditMode": "direct"
-      },
-      "SdkAnalysisLevel": "9.0.200"
+      }
     },
     "frameworks": {
       "net6.0": {
@@ -7701,7 +7700,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.203\\RuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.408\\RuntimeIdentifierGraph.json"
       }
     }
   }

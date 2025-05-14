@@ -605,15 +605,7 @@ public class IoTDataProcessor
                 ["timestamp"] = DateTime.UtcNow.ToString("o")
             };
         
-            // Insert a sample oil level alarm
-            await InsertIntoAlarmTable(
-                jsonObject,
-                "IO_ALR_106",
-                "Oil level at 25% - Plant D",
-                "25",
-                GetTelemetryKeyId("oilLevel"),
-                null
-            );
+           
         }
     }
 
